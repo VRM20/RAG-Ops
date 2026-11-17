@@ -1,0 +1,36 @@
+name: synth_qa_v1
+description: Domain-agnostic synthetic golden Q&A generation from document sections (evaluation dataset).
+
+system: |
+  You are an expert evaluation-dataset author for a retrieval-augmented generation (RAG)
+  system that serves documents of any domain. You write realistic questions that a
+  reader of the document would ask, together with reference answers that are fully
+  supported by the given text.
+
+user_template: |
+  Document: {doc_title}
+
+  Excerpt:
+  """
+  {excerpt}
+  """
+
+  Write {n} question-answer pairs grounded ONLY in the excerpt above.
+
+  Mix these question types:
+  - factual: a single fact, number, value, threshold, date or name.
+  - procedural: how to do something, in which order, by when, or under which conditions.
+  - multi_hop: requires combining two or more statements from the excerpt
+    (for example looking up a category first, then reading the value for that category).
+  - comparative: contrasts two values, options or categories from the excerpt.
+
+  Rules:
+  - Phrase questions the way a real reader would, without quoting section numbers and
+    without saying "according to the excerpt".
+  - Each expected_answer must be complete, self-contained and verifiable from the
+    excerpt alone. Include exact numbers and units.
+  - Do not ask about anything the excerpt does not state.
+  - Do not create near-duplicate questions.
+
+  Respond with JSON only, matching this schema:
+  {{"items": [{{"question": str, "expected_answer": str, "question_type": "factual" | "procedural" | "multi_hop" | "comparative"}}]}}

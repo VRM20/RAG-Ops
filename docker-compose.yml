@@ -1,0 +1,84 @@
+# Full production-like stack:
+#   docker compose up --build
+#
+# web (Next.js :3000) -> api (FastAPI :8000) -> qdrant (:6333), redis (:6379)
+#                         worker (Celery: ingestion + eval runs)
+#                         phoenix (:6006) <- OpenTelemetry traces from api + worker
+#
+# Credentials come from .env; the GCP key is mounted read-only from ./secrets.
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/api.Dockerfile
+  env_file: .env
+  environment:
+    QDRANT_URL: http://qdrant:6333
+    REDIS_URL: redis://redis:6379/0
+    TASK_QUEUE: celery
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://phoenix:6006/v1/traces
+    GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/gcp-vertex-key.json
+    CORS_ORIGINS: http://localhost:3000
+  volumes:
+    - ./secrets:/app/secrets:ro
+    - app-state:/app/data/state
+  depends_on:
+    qdrant:
+      condition: service_started
+    redis:
+      condition: service_healthy
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.20.0   # keep within one minor version of qdrant-client
+    ports: ["6333:6333"]
+    volumes: [qdrant-data:/qdrant/storage]
+
+  redis:
+    image: redis:7.4-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  phoenix:
+    image: arizephoenix/phoenix:version-20.27.0
+    ports: ["6006:6006"]
+    volumes: [phoenix-data:/mnt/data]
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+
+  api:
+    <<: *app
+    ports: ["8000:8000"]
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+      TASK_QUEUE: celery
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://phoenix:6006/v1/traces
+      OTEL_SERVICE_NAME: ragops-api
+      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/gcp-vertex-key.json
+      CORS_ORIGINS: http://localhost:3000
+      RAGOPS_AUTO_INGEST: "true"
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "ragops.worker.celery_app", "worker", "-Q", "ingest,evals,celery", "--concurrency", "2", "--loglevel", "INFO"]
+    healthcheck:
+      disable: true
+
+  web:
+    build:
+      context: ./web
+      # NEXT_PUBLIC_* values are inlined into the browser bundle at build time, so they
+      # are build args, not runtime env. The browser calls the API on the host port.
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  qdrant-data:
+  phoenix-data:
+  app-state:

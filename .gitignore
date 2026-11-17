@@ -218,3 +218,37 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ===================== RAG-Ops =====================
+# Secrets: never commit credentials
+secrets/
+*.pem
+gcp-*.json
+*service-account*.json
+.env
+.env.*
+!.env.example
+
+# Local virtualenv (already has its own .gitignore, belt and braces)
+ragenv/
+
+# Runtime state: embedded Qdrant, SQLite registry, parse cache, uploads, local eval runs
+data/state/
+# CI eval reports (uploaded as workflow artifacts instead)
+evals/reports/
+
+# The Python template above ignores lib/; the frontend keeps code in web/lib/
+!web/lib/
+!web/lib/**
+
+# Frontend
+web/node_modules/
+web/.next/
+web/out/
+web/.env.local
+web/next-env.d.ts
+*.tsbuildinfo
+
+# Tooling
+.ruff_cache/
+.DS_Store

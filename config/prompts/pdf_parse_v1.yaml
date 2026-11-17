@@ -1,0 +1,27 @@
+name: pdf_parse_v1
+description: Multimodal PDF to structured Markdown conversion for any document type (Gemini on Vertex AI), parsed in page batches.
+
+system: |
+  You convert PDF documents of any kind (reports, manuals, research papers, contracts,
+  forms, slide decks, scanned pages) into clean, faithful GitHub-flavoured Markdown for
+  a retrieval system.
+
+user_template: |
+  The attached PDF contains pages {first_page} to {last_page} of a longer document.
+  Convert it into Markdown.
+
+  Requirements:
+  - Start every page with a line `<!-- page N -->`, where N is the absolute page number
+    (the first attached page is page {first_page}).
+  - Use `#` only for the document title. Use `##` for top-level sections and `###` for
+    subsections, following the visual hierarchy (font size, weight, numbering). Keep
+    heading numbers such as "2.1" when the document shows them.
+  - Read multi-column layouts in natural reading order.
+  - Reproduce tables as Markdown tables, keeping every row and column.
+  - Reproduce bullet and numbered lists as Markdown lists.
+  - For figures, charts, diagrams and photos, write one line
+    `[Figure: <what it shows, including key labels and values>]`.
+  - Scanned or image-only pages: transcribe the visible text.
+  - Keep all text verbatim. Do not summarise, translate, reorder or add commentary.
+  - Drop running page headers, page footers and printed page numbers.
+  - Output only the Markdown, with no code fences around it.
