@@ -1,0 +1,72 @@
+name: RAG Eval Baseline
+
+# Manually refresh the committed baseline (evals/baselines/baseline.json) that the
+# eval gate compares against. Runs the full evaluation on the chosen branch and opens a
+# PR with the new baseline, so moving the bar is itself a reviewed change.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to baseline"
+        required: true
+        default: main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.20.0
+        ports: ["6333:6333"]
+    env:
+      RAGOPS_ENV: ci
+      QDRANT_URL: http://localhost:6333
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GOOGLE_APPLICATION_CREDENTIALS: secrets/gcp-vertex-key.json
+      VERTEX_LOCATION: ${{ vars.VERTEX_LOCATION || 'global' }}
+      VERTEX_EMBEDDING_LOCATION: ${{ vars.VERTEX_EMBEDDING_LOCATION || 'us-central1' }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - run: pip install -e ".[eval,dev]"
+
+      - name: Write GCP service-account key
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: mkdir -p secrets && printf '%s' "$GCP_SA_KEY" > secrets/gcp-vertex-key.json
+
+      - run: ragops ingest
+      - run: ragops eval --label baseline --save-baseline --report evals/reports/report.md
+
+      - name: Open PR with the new baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="chore/eval-baseline-$(date +%Y%m%d-%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add evals/baselines/baseline.json
+          git commit -m "chore(evals): refresh RAG eval baseline from ${{ inputs.ref }}"
+          git push origin "$branch"
+          gh pr create --base "${{ inputs.ref }}" --head "$branch" \
+            --title "chore(evals): refresh RAG eval baseline" \
+            --body-file evals/reports/report.md

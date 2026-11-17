@@ -1,0 +1,44 @@
+# Quality gates enforced by the CI evaluation pipeline.
+#
+# A PR is blocked when any `blocking` metric's dataset mean falls below its threshold,
+# when a blocking metric regresses by more than `regression.max_drop` against the
+# committed baseline (evals/baselines/baseline.json), or when any ACL case leaks a
+# forbidden chunk.
+
+metrics:
+  faithfulness:
+    threshold: 0.85
+    blocking: true
+  contextual_recall:
+    threshold: 0.85
+    blocking: true
+  answer_relevancy:
+    threshold: 0.80
+    blocking: false
+  contextual_precision:
+    threshold: 0.70
+    blocking: false
+  # Deterministic retrieval metric (no LLM): fraction of cases where every expected
+  # source document appears in the final reranked context.
+  doc_recall:
+    threshold: 0.90
+    blocking: false
+
+regression:
+  max_drop: 0.05
+
+acl:
+  max_leaked_chunks: 0
+
+judge:
+  route: judge
+  concurrency: 4
+
+dataset:
+  files:
+    - evals/datasets/golden_curated.jsonl
+    - evals/datasets/golden_synthetic.jsonl
+  # Optional cap on the number of cases per run (null = all). Sampling is seeded so
+  # that every run evaluates the same subset.
+  max_cases: null
+  seed: 7

@@ -1,0 +1,73 @@
+# RAG pipeline configuration.
+#
+# This file is versioned in git on purpose: changing the chunk size, the embedding
+# model, retrieval depth or the prompt version is a *behaviour change* of the RAG
+# system, so any PR that touches this file triggers the DeepEval quality gate
+# (.github/workflows/rag-eval-gate.yml).
+#
+# Values of the form ${ENV_VAR:-default} are resolved from the environment.
+
+version: 1
+
+ingestion:
+  # How PDFs are converted to structured Markdown before chunking:
+  #   gemini - multimodal parsing on Vertex AI (keeps headings + tables)  [routes.pdf_parsing]
+  #   pypdf  - local text extraction + heading heuristics (no LLM cost, used as fallback)
+  pdf_parser: ${PDF_PARSER:-gemini}
+  # PDFs of any length are parsed in page batches (output-token limits, page accuracy).
+  pdf_pages_per_batch: 10
+  pdf_parse_concurrency: 4
+
+  chunking:
+    # semantic   - split by document structure (headings), then split oversized
+    #              sections at embedding-similarity breakpoints between sentences
+    # structural - split by headings only, oversized sections split by sentences
+    # fixed      - naive fixed-size token windows (baseline to compare against)
+    strategy: semantic
+    max_tokens: 350
+    min_tokens: 40
+    overlap_tokens: 40                   # only used by the `fixed` strategy
+    semantic_breakpoint_percentile: 85   # higher = fewer, larger chunks
+    # Prepend "Document > Section > Subsection" to every chunk before embedding and
+    # BM25 indexing (contextual chunk headers). Big recall win for short sections.
+    contextual_header: true
+
+embedding:
+  # Any LiteLLM embedding model string. Changing it requires re-ingestion (the
+  # collection name embeds a fingerprint of model + dimensions, see store.py).
+  # gemini-embedding-001 (about $0.15 per 1M input tokens): multilingual, higher quality
+  # than text-embedding-005. Its native size is 3072 dims; 768 keeps the index small
+  # (Matryoshka truncation, cosine distance in Qdrant). Vertex accepts one input per
+  # request for this model, hence batch_size: 1 (requests still run 4 in parallel).
+  # Previous model: vertex_ai/text-embedding-005 with batch_size: 32 (up to 250 per call).
+  model: ${EMBEDDING_MODEL:-vertex_ai/gemini-embedding-001}
+  dimensions: 768
+  batch_size: 1
+
+retrieval:
+  dense_top_k: 20
+  sparse_top_k: 20
+  # Reciprocal Rank Fusion: score(d) = sum_i 1 / (rrf_k + rank_i(d))
+  rrf_k: 60
+  fused_top_k: 20
+  rerank:
+    enabled: true
+    # Any LiteLLM rerank model, e.g. cohere/rerank-v3.5, bedrock/cohere.rerank-v3-5:0
+    model: ${RERANK_MODEL:-cohere/rerank-v3.5}
+    top_n: 5
+  # Chunks below this rerank relevance score are dropped before generation.
+  min_relevance_score: 0.05
+
+generation:
+  route: synthesis          # model route from config/models.yaml
+  prompt: rag_system_v1     # file in config/prompts/
+  # Generous on purpose: Gemini 2.5 and Claude 5.x count thinking tokens against
+  # max_tokens, so a tight cap can truncate the visible answer.
+  max_tokens: 4096
+  max_context_chunks: 5
+
+guardrails:
+  # AWS Bedrock Guardrails (ApplyGuardrail API). Falls back to the local regex
+  # guard when BEDROCK_GUARDRAIL_ID is not configured.
+  input: true
+  output: true

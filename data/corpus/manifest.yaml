@@ -1,0 +1,101 @@
+# Demo corpus manifest. The engine is domain-agnostic: any PDF / Markdown / text file
+# can be ingested (UI upload, `ragops ingest --file/--dir`). This manifest only defines
+# the bundled demo collection, which deliberately mixes domains and document layouts
+# (policies, a product manual, a research report, public-sector rules) so the parser,
+# the chunker and the eval gate are exercised on varied structures.
+#
+# - `format: pdf` documents are rendered from the Markdown source into data/corpus/pdf/
+#   by `ragops build-pdfs`, then ingested through the PDF parser (Gemini multimodal
+#   parsing or the local pypdf fallback).
+# - `format: md` documents are ingested directly from Markdown.
+# - `acl_groups`: a chunk is retrievable only by users who belong to at least one of
+#   these groups. Every user implicitly belongs to `public`.
+# - `organization`: running footer printed on rendered PDF pages (parsers must drop it).
+# - `domain`: informational label used in reports.
+# All organisations and content are fictional.
+
+documents:
+  # ---- Enterprise policies (fictional company "Lumen Ledger Finance") ----------------
+  - doc_id: company-overview
+    title: Company Overview
+    source: sources/company-overview.md
+    format: md
+    acl_groups: [public]
+    domain: corporate
+
+  - doc_id: employee-handbook
+    title: Employee Handbook (2026 Edition)
+    source: sources/employee-handbook.md
+    format: pdf
+    acl_groups: [all-employees]
+    organization: Lumen Ledger Finance - Internal
+    domain: hr-policy
+
+  - doc_id: information-security-policy
+    title: Information Security Policy
+    source: sources/information-security-policy.md
+    format: pdf
+    acl_groups: [all-employees]
+    organization: Lumen Ledger Finance - Internal
+    domain: security-policy
+
+  - doc_id: travel-and-expense-policy
+    title: Travel and Expense Policy
+    source: sources/travel-and-expense-policy.md
+    format: md
+    acl_groups: [all-employees]
+    domain: finance-policy
+
+  - doc_id: credit-underwriting-policy
+    title: Credit Underwriting Policy
+    source: sources/credit-underwriting-policy.md
+    format: pdf
+    acl_groups: [credit-risk, leadership]
+    organization: Lumen Ledger Finance - Confidential
+    domain: credit-policy
+
+  - doc_id: compensation-and-bonus-framework-2026
+    title: Compensation and Bonus Framework 2026
+    source: sources/compensation-and-bonus-framework-2026.md
+    format: md
+    acl_groups: [hr, leadership]
+    domain: hr-policy
+
+  - doc_id: incident-response-runbook
+    title: Incident Response Runbook
+    source: sources/incident-response-runbook.md
+    format: md
+    acl_groups: [engineering, security]
+    domain: engineering-runbook
+
+  - doc_id: kyc-aml-operations-manual
+    title: KYC and AML Operations Manual
+    source: sources/kyc-aml-operations-manual.md
+    format: pdf
+    acl_groups: [compliance, operations]
+    organization: Lumen Ledger Finance - Internal
+    domain: compliance
+
+  # ---- Other domains and layouts ----------------------------------------------------
+  - doc_id: aurora-x2-home-battery-manual
+    title: Aurora X2 Home Battery - Installation and User Manual
+    source: sources/aurora-x2-home-battery-manual.md
+    format: pdf
+    acl_groups: [public]
+    organization: Aurora Energy Systems - Product Manual Rev. C
+    domain: technical-manual
+
+  - doc_id: retrieval-depth-study
+    title: Effect of Retrieval Depth and Reranking on Grounded Answer Quality
+    source: sources/retrieval-depth-study.md
+    format: pdf
+    acl_groups: [engineering]
+    organization: Applied Retrieval Group - Technical Report ARG-TR-2026-07
+    domain: research-report
+
+  - doc_id: riverton-library-membership-rules
+    title: Riverton Public Library - Membership and Lending Rules
+    source: sources/riverton-library-membership-rules.md
+    format: md
+    acl_groups: [public]
+    domain: public-sector

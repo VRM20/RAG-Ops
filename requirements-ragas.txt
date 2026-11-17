@@ -1,0 +1,7 @@
+# Isolated environment for scripts/ragas_crosscheck.py (never installed with the app).
+# RAGAS 0.4.3 still imports langchain_community.chat_models.vertexai at load time,
+# which langchain-community 0.4 removed, hence the upper pin.
+ragas==0.4.3
+langchain-community<0.4
+litellm>=1.108
+python-dotenv>=1.0

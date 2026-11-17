@@ -1,0 +1,98 @@
+# Multi-provider model catalogue and task routing.
+#
+# The application never hard-codes a provider. Code asks the router for a *route*
+# (synthesis, reasoning, pdf_parsing, ...) and the router resolves it to a primary
+# model plus ordered fallbacks across GCP Vertex AI and AWS Bedrock (LiteLLM Router).
+#
+# Model IDs can be overridden from .env without editing this file. Before first use,
+# confirm the exact IDs you have access to:
+#   - Vertex AI: Console > Vertex AI > Model Garden
+#   - Bedrock:   Console > Bedrock > Cross-region inference > Inference profile ID
+#                (ap-south-1 uses `apac.` profiles; `global.` profiles also work)
+
+#
+# Current setup: GCP only, every route on Gemini 3.8 Flash. The other models below are
+# kept defined but parked (no route references them):
+#   - gemini-pro          : swap it back in as a route's primary for harder jobs
+#   - claude-haiku-vertex : needs a paid (non-free-trial) billing account, because Claude
+#                           is a Model Garden marketplace product
+#   - claude-sonnet/haiku : AWS Bedrock; also fill the AWS_* values in .env
+
+models:
+  # Gemini 2.5 Pro/Flash passed their Vertex deprecation date (2026-10-20).
+  # Gemini 3.x: keep the default temperature (Google advises against lowering it), and
+  # use VERTEX_LOCATION=global, where the 3.x preview models are served.
+
+  # Parked: defined but not used by any route (Gemini 3.8 Flash replaced it, cheaper).
+  # Put `gemini-pro` back as a route's primary to use it again.
+  gemini-pro:
+    litellm_model: ${VERTEX_PRO_MODEL:-vertex_ai/gemini-3.1-pro-preview}
+    provider: vertex
+    params: {}
+
+  # Workhorse for every route: answers, PDF parsing, reasoning, synthetic data, judge.
+  # Introductory price $0.75 / $3.75 per 1M tokens (in/out) until 2026-12-31,
+  # then $1.50 / $7.50.
+  gemini-flash:
+    litellm_model: ${VERTEX_FLASH_MODEL:-vertex_ai/gemini-3.8-flash}
+    provider: vertex
+    params: {}
+
+  # Parked: Claude on Vertex AI (Model Garden partner model, serverless).
+  # About $0.10 / $0.50 per 1M tokens (in/out) for prompts under 100K tokens.
+  # Cannot be enabled on a free-trial billing account. To use it: upgrade billing, enable it
+  # in Model Garden, confirm the model id on its card, then make it the primary of
+  # `synthesis` and `fast` (with gemini-flash as fallback). Same rule as on Bedrock:
+  # no temperature/top_p/top_k for Claude 5.x.
+  claude-haiku-vertex:
+    litellm_model: ${VERTEX_CLAUDE_HAIKU_MODEL:-vertex_ai/claude-haiku-5-5}
+    provider: vertex
+    params: {}
+
+  # ---- AWS Bedrock (parked while AWS is not in use) ----
+  claude-sonnet:
+    litellm_model: ${BEDROCK_SONNET_MODEL:-bedrock/apac.anthropic.claude-sonnet-5-5}
+    provider: bedrock
+    # Do NOT set temperature/top_p/top_k for Claude 5.x models: non-default sampling
+    # parameters are rejected by the API.
+    params: {}
+
+  claude-haiku:
+    litellm_model: ${BEDROCK_HAIKU_MODEL:-bedrock/apac.anthropic.claude-haiku-5-5}
+    provider: bedrock
+    params: {}
+
+routes:
+  # High-speed grounded answer synthesis for the live RAG chat.
+  synthesis:
+    primary: gemini-flash
+
+  # Cheap, latency-sensitive helpers (query rewriting, titles, classification).
+  fast:
+    primary: gemini-flash
+
+  # Complex multi-step reasoning.
+  reasoning:
+    primary: gemini-flash
+
+  # Multimodal PDF -> structured Markdown (needs Gemini's native PDF input; the local
+  # pypdf parser is the fallback if this route fails).
+  pdf_parsing:
+    primary: gemini-flash
+
+  # Synthetic golden-dataset generation for evals.
+  synthetic_data:
+    primary: gemini-flash
+
+  # LLM-as-judge for DeepEval / RAGAS. Ideally a *different model family* from the
+  # synthesis model, to reduce self-preference bias. With Gemini 3.8 Flash both answering
+  # and judging, scores may be slightly lenient; restore a Claude synthesis model (see the
+  # parked models above) to get the cross-family setup back.
+  judge:
+    primary: gemini-flash
+
+router:
+  num_retries: 2
+  timeout_s: 90
+  allowed_fails: 3     # failures before a deployment is put in cooldown
+  cooldown_s: 30

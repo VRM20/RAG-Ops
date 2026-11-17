@@ -1,0 +1,43 @@
+# Demo identity directory.
+#
+# In production these groups come from your IdP (Okta / Entra ID / Google Workspace)
+# as OIDC token claims. For the demo, the API resolves the `X-User-Id` header against
+# this file. Every user implicitly belongs to the `public` group.
+
+users:
+  - user_id: priya.sharma
+    name: Priya Sharma
+    title: Credit Analyst
+    groups: [all-employees, credit-risk]
+
+  - user_id: arjun.nair
+    name: Arjun Nair
+    title: Site Reliability Engineer
+    groups: [all-employees, engineering]
+
+  - user_id: meera.iyer
+    name: Meera Iyer
+    title: HR Business Partner
+    groups: [all-employees, hr]
+
+  - user_id: kabir.singh
+    name: Kabir Singh
+    title: AML Compliance Officer
+    groups: [all-employees, compliance, operations]
+
+  - user_id: ananya.rao
+    name: Ananya Rao
+    title: Chief Executive Officer
+    groups: [all-employees, leadership]
+
+  - user_id: sam.contractor
+    name: Sam Wilson
+    title: External Contractor
+    groups: [contractors]
+
+  # Used by the CI evaluation suite: can read every document so that answer quality
+  # is measured independently of ACLs. ACL enforcement has its own dedicated tests.
+  - user_id: eval.bot
+    name: Evaluation Bot
+    title: CI Evaluation Service Account
+    groups: [all-employees, credit-risk, hr, leadership, engineering, security, compliance, operations]
